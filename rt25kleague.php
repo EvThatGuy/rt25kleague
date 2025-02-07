@@ -121,8 +121,47 @@ if (!function_exists('register_team_post_type')) {
 }
 /**
  * Part 2: Taxonomies and Meta Boxes
- * Last updated by EvThatGuy on 2025-02-07 01:38:48
+ * Last updated by EvThatGuy on 2025-02-07 02:03:41
  */
+
+// Add meta boxes for both team and game post types
+add_action('add_meta_boxes', 'register_all_meta_boxes');
+
+function register_all_meta_boxes() {
+    // Add Division Meta Box
+    add_meta_box(
+        'division-select',
+        'Select Division',
+        'render_division_select',
+        'team',
+        'side',
+        'high'
+    );
+
+    // Add Game Meta Box
+    add_meta_box(
+        'game_details',
+        'Game Details',
+        'game_meta_box_callback',
+        'game',
+        'normal',
+        'high'
+    );
+
+    // Add Team Meta Box
+    add_meta_box(
+        'team_details',
+        'Team Details',
+        'team_meta_box_callback',
+        'team',
+        'normal',
+        'high'
+    );
+
+    // Remove unwanted meta boxes
+    remove_meta_box('teamsize', 'team', 'normal');
+    remove_meta_box('manualpoints', 'team', 'normal');
+}
 
 // Division Taxonomy
 if (!function_exists('register_division_taxonomy')) {
@@ -144,7 +183,7 @@ if (!function_exists('register_division_taxonomy')) {
             'team',
             array(
                 'labels'            => $labels,
-                'hierarchical'      => false,
+                'hierarchical'      => true,
                 'public'           => true,
                 'show_ui'          => true,
                 'show_admin_column' => true,
@@ -162,24 +201,6 @@ if (!function_exists('register_division_taxonomy')) {
         );
     }
     add_action('init', 'register_division_taxonomy');
-}
-
-// Add custom meta box for division selection
-add_action('add_meta_boxes', 'add_division_meta_box');
-
-function add_division_meta_box() {
-    add_meta_box(
-        'division-select',
-        'Select Division',
-        'render_division_select',
-        'team',
-        'side',
-        'high'
-    );
-
-    // Remove unwanted meta boxes
-    remove_meta_box('teamsize', 'team', 'normal');
-    remove_meta_box('manualpoints', 'team', 'normal');
 }
 
 function render_division_select($post) {
@@ -244,176 +265,285 @@ function save_team_division($post_id, $post) {
         }
     }
 }
-// Add Game Meta Box
-if (!function_exists('add_game_meta_box')) {
-    function add_game_meta_box() {
-        add_meta_box(
-            'game_details',
-            'Game Details',
-            'game_meta_box_callback',
-            'game',
-            'normal',
-            'high'
-        );
-    }
-    add_action('add_meta_boxes', 'add_game_meta_box');
+
+// Game Meta Box Callback
+function game_meta_box_callback($post) {
+    wp_nonce_field('game_meta_box', 'game_meta_box_nonce');
+
+    // Get existing values
+    $team1_id = get_post_meta($post->ID, '_team1', true);
+    $team2_id = get_post_meta($post->ID, '_team2', true);
+    $score1 = get_post_meta($post->ID, '_score1', true) ?: '0';
+    $score2 = get_post_meta($post->ID, '_score2', true) ?: '0';
+    $points1 = get_post_meta($post->ID, '_points1', true) ?: '0';
+    $points2 = get_post_meta($post->ID, '_points2', true) ?: '0';
+
+    // Get all teams
+    $teams = get_posts(array(
+        'post_type' => 'team',
+        'posts_per_page' => -1,
+        'orderby' => 'title',
+        'order' => 'ASC'
+    ));
+    ?>
+    <div class="game-meta-box">
+        <div class="team-section">
+            <label for="team1">Team 1:</label>
+            <select name="team1" id="team1" required>
+                <option value="">Select Team</option>
+                <?php foreach ($teams as $team) : ?>
+                    <option value="<?php echo esc_attr($team->ID); ?>" 
+                        <?php selected($team1_id, $team->ID); ?>>
+                        <?php echo esc_html($team->post_title); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <label for="score1">Score Team 1:</label>
+            <input type="number" 
+                   name="score1" 
+                   id="score1" 
+                   value="<?php echo esc_attr($score1); ?>" 
+                   min="0" 
+                   required>
+
+            <label for="points1">Points Team 1:</label>
+            <input type="number" 
+                   name="points1" 
+                   id="points1" 
+                   value="<?php echo esc_attr($points1); ?>" 
+                   step="0.1" 
+                   required>
+        </div>
+
+        <div class="team-section">
+            <label for="team2">Team 2:</label>
+            <select name="team2" id="team2" required>
+                <option value="">Select Team</option>
+                <?php foreach ($teams as $team) : ?>
+                    <option value="<?php echo esc_attr($team->ID); ?>" 
+                        <?php selected($team2_id, $team->ID); ?>>
+                        <?php echo esc_html($team->post_title); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <label for="score2">Score Team 2:</label>
+            <input type="number" 
+                   name="score2" 
+                   id="score2" 
+                   value="<?php echo esc_attr($score2); ?>" 
+                   min="0" 
+                   required>
+
+            <label for="points2">Points Team 2:</label>
+            <input type="number" 
+                   name="points2" 
+                   id="points2" 
+                   value="<?php echo esc_attr($points2); ?>" 
+                   step="0.1" 
+                   required>
+        </div>
+    </div>
+
+    <style>
+        .game-meta-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 15px;
+        }
+        .team-section {
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .team-section label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+        .team-section select,
+        .team-section input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .team-section input[type="number"] {
+            width: 100px;
+        }
+    </style>
+
+    <script>
+    jQuery(document).ready(function($) {
+        $('#team1, #team2').on('change', function() {
+            const team1 = $('#team1').val();
+            const team2 = $('#team2').val();
+            
+            if (team1 && team2 && team1 === team2) {
+                alert('Teams must be different');
+                $(this).val('');
+            }
+        });
+    });
+    </script>
+    <?php
 }
 
 // Team Meta Box Callback
-if (!function_exists('team_meta_box_callback')) {
-    function team_meta_box_callback($post) {
-        wp_nonce_field('team_meta_box', 'team_meta_box_nonce');
+function team_meta_box_callback($post) {
+    wp_nonce_field('team_meta_box', 'team_meta_box_nonce');
 
-        // Get existing values
-        $team_code = get_post_meta($post->ID, '_team_code', true);
-        $captain_name = get_post_meta($post->ID, '_captain_name', true);
-        $captain_email = get_post_meta($post->ID, '_captain_email', true);
-        $team_size = get_post_meta($post->ID, '_team_size', true);
-        $manual_points = get_post_meta($post->ID, '_manual_points', true);
-        ?>
-        <style>
-            .team-meta-box {
-                display: grid;
-                gap: 15px;
-                padding: 10px;
-            }
-            .team-meta-box label {
-                display: block;
-                font-weight: bold;
-                margin-bottom: 5px;
-            }
-            .team-meta-box input[type="text"],
-            .team-meta-box input[type="email"],
-            .team-meta-box input[type="number"] {
-                width: 100%;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-            }
-            .team-meta-box .field-group {
-                margin-bottom: 15px;
-            }
-            .logo-preview {
-                max-width: 200px;
-                margin: 10px 0;
-            }
-        </style>
-
-        <div class="team-meta-box">
-            <!-- Team Logo Instructions -->
-            <div class="field-group">
-                <p><strong>Team Logo:</strong> Use the "Featured Image" box on the right to set the team logo.</p>
-            </div>
-
-            <!-- Division Selection Instructions -->
-            <div class="field-group">
-                <p><strong>Division Assignment:</strong> Use the "Divisions" box on the right to assign this team to a division.</p>
-            </div>
-
-            <div class="field-group">
-                <label for="team_code">Team Code:</label>
-                <input type="text" 
-                       id="team_code" 
-                       name="team_code" 
-                       value="<?php echo esc_attr($team_code); ?>"
-                       placeholder="Enter team code">
-            </div>
-
-            <div class="field-group">
-                <label for="captain_name">Captain Name:</label>
-                <input type="text" 
-                       id="captain_name" 
-                       name="captain_name" 
-                       value="<?php echo esc_attr($captain_name); ?>"
-                       placeholder="Enter captain's name">
-            </div>
-
-            <div class="field-group">
-                <label for="captain_email">Captain Email:</label>
-                <input type="email" 
-                       id="captain_email" 
-                       name="captain_email" 
-                       value="<?php echo esc_attr($captain_email); ?>"
-                       placeholder="Enter captain's email">
-            </div>
-
-            <div class="field-group">
-                <label for="team_size">Team Size:</label>
-                <input type="number" 
-                       id="team_size" 
-                       name="team_size" 
-                       value="<?php echo esc_attr($team_size); ?>"
-                       min="1" 
-                       placeholder="Enter team size">
-            </div>
-
-            <div class="field-group">
-                <label for="manual_points">Manual Points Adjustment:</label>
-                <input type="number" 
-                       id="manual_points" 
-                       name="manual_points" 
-                       value="<?php echo esc_attr($manual_points); ?>"
-                       step="0.1" 
-                       placeholder="Enter manual points adjustment">
-            </div>
+    // Get existing values
+    $team_code = get_post_meta($post->ID, '_team_code', true);
+    $captain_name = get_post_meta($post->ID, '_captain_name', true);
+    $captain_email = get_post_meta($post->ID, '_captain_email', true);
+    $team_size = get_post_meta($post->ID, '_team_size', true);
+    $manual_points = get_post_meta($post->ID, '_manual_points', true);
+    ?>
+    <div class="team-meta-box">
+        <div class="field-group">
+            <label for="team_code">Team Code:</label>
+            <input type="text" 
+                   id="team_code" 
+                   name="team_code" 
+                   value="<?php echo esc_attr($team_code); ?>"
+                   placeholder="Enter team code">
         </div>
-        <?php
+
+        <div class="field-group">
+            <label for="captain_name">Captain Name:</label>
+            <input type="text" 
+                   id="captain_name" 
+                   name="captain_name" 
+                   value="<?php echo esc_attr($captain_name); ?>"
+                   placeholder="Enter captain's name">
+        </div>
+
+        <div class="field-group">
+            <label for="captain_email">Captain Email:</label>
+            <input type="email" 
+                   id="captain_email" 
+                   name="captain_email" 
+                   value="<?php echo esc_attr($captain_email); ?>"
+                   placeholder="Enter captain's email">
+        </div>
+
+        <div class="field-group">
+            <label for="team_size">Team Size:</label>
+            <input type="number" 
+                   id="team_size" 
+                   name="team_size" 
+                   value="<?php echo esc_attr($team_size); ?>"
+                   min="1" 
+                   placeholder="Enter team size">
+        </div>
+
+        <div class="field-group">
+            <label for="manual_points">Manual Points Adjustment:</label>
+            <input type="number" 
+                   id="manual_points" 
+                   name="manual_points" 
+                   value="<?php echo esc_attr($manual_points); ?>"
+                   step="0.1" 
+                   placeholder="Enter manual points adjustment">
+        </div>
+    </div>
+
+    <style>
+        .team-meta-box {
+            padding: 15px;
+        }
+        .field-group {
+            margin-bottom: 15px;
+        }
+        .field-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .field-group input {
+            width: 100%;
+            max-width: 400px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+    <?php
+}
+
+// Save game meta box data
+add_action('save_post_game', 'save_game_meta_box_data');
+
+function save_game_meta_box_data($post_id) {
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    if (get_post_type($post_id) !== 'game') return;
+    if (!current_user_can('edit_post', $post_id)) return;
+    if (!isset($_POST['game_meta_box_nonce']) || !wp_verify_nonce($_POST['game_meta_box_nonce'], 'game_meta_box')) {
+        return;
+    }
+
+    $fields = array(
+        '_team1' => 'team1',
+        '_team2' => 'team2',
+        '_score1' => 'score1',
+        '_score2' => 'score2',
+        '_points1' => 'points1',
+        '_points2' => 'points2'
+    );
+
+    foreach ($fields as $meta_key => $post_key) {
+        if (isset($_POST[$post_key])) {
+            $value = ($post_key === 'team1' || $post_key === 'team2') ? 
+                absint($_POST[$post_key]) : 
+                floatval($_POST[$post_key]);
+            update_post_meta($post_id, $meta_key, $value);
+        }
+    }
+
+    // Update team points if needed
+    if (isset($_POST['team1']) && isset($_POST['team2'])) {
+        $team1_id = absint($_POST['team1']);
+        $team2_id = absint($_POST['team2']);
+        
+        if ($team1_id > 0) update_team_standings($team1_id);
+        if ($team2_id > 0) update_team_standings($team2_id);
     }
 }
 
-// Save Team Meta Data with improved error handling and validation
-if (!function_exists('save_team_meta_box_data')) {
-    function save_team_meta_box_data($post_id) {
-        // Security checks
-        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
-        if (!current_user_can('edit_post', $post_id)) return;
-        if (!isset($_POST['team_meta_box_nonce']) || 
-            !wp_verify_nonce($_POST['team_meta_box_nonce'], 'team_meta_box')) {
-            return;
-        }
+// Save team meta box data
+add_action('save_post_team', 'save_team_meta_box_data');
 
-        // Save team meta data with improved validation
-        $fields = array(
-            '_team_code' => array(
-                'post_key' => 'team_code',
-                'sanitize' => 'sanitize_text_field'
-            ),
-            '_captain_name' => array(
-                'post_key' => 'captain_name',
-                'sanitize' => 'sanitize_text_field'
-            ),
-            '_captain_email' => array(
-                'post_key' => 'captain_email',
-                'sanitize' => 'sanitize_email'
-            ),
-            '_team_size' => array(
-                'post_key' => 'team_size',
-                'sanitize' => 'absint'
-            ),
-            '_manual_points' => array(
-                'post_key' => 'manual_points',
-                'sanitize' => 'floatval'
-            )
-        );
+function save_team_meta_box_data($post_id) {
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    if (!current_user_can('edit_post', $post_id)) return;
+    if (!isset($_POST['team_meta_box_nonce']) || 
+        !wp_verify_nonce($_POST['team_meta_box_nonce'], 'team_meta_box')) {
+        return;
+    }
 
-        foreach ($fields as $meta_key => $field) {
-            if (isset($_POST[$field['post_key']])) {
-                $value = $_POST[$field['post_key']];
-                if ($field['sanitize'] === 'floatval') {
-                    $value = floatval($value);
-                } else {
-                    $value = call_user_func($field['sanitize'], $value);
-                }
-                update_post_meta($post_id, $meta_key, $value);
-            }
-        }
+    $fields = array(
+        '_team_code' => array('key' => 'team_code', 'sanitize' => 'sanitize_text_field'),
+        '_captain_name' => array('key' => 'captain_name', 'sanitize' => 'sanitize_text_field'),
+        '_captain_email' => array('key' => 'captain_email', 'sanitize' => 'sanitize_email'),
+        '_team_size' => array('key' => 'team_size', 'sanitize' => 'absint'),
+        '_manual_points' => array('key' => 'manual_points', 'sanitize' => 'floatval')
+    );
 
-        // Update team standings if manual points changed
-        if (isset($_POST['manual_points'])) {
-            update_team_standings($post_id);
+    foreach ($fields as $meta_key => $field) {
+        if (isset($_POST[$field['key']])) {
+            $value = call_user_func($field['sanitize'], $_POST[$field['key']]);
+            update_post_meta($post_id, $meta_key, $value);
         }
     }
-    add_action('save_post_team', 'save_team_meta_box_data');
+
+    // Update standings if manual points changed
+    if (isset($_POST['manual_points'])) {
+        update_team_standings($post_id);
+    }
 }
 /**
  * Part 3: Game Meta Box and Game Management
@@ -2438,4 +2568,30 @@ function display_all_games_shortcode($atts) {
     </style>
     <?php
     return ob_get_clean();
+}
+/**
+ * Part 10: Helper Functions and Dashboard Widgets
+ * Last updated by EvThatGuy on 2025-02-07 02:06:26
+ */
+
+function get_team_division_name($team_id) {
+    $terms = get_the_terms($team_id, 'division');
+    if ($terms && !is_wp_error($terms)) {
+        return $terms[0]->name;
+    }
+    return 'Unassigned';
+}
+/**
+ * Part 10: Helper Functions
+ * Last updated by EvThatGuy on 2025-02-07 02:10:05
+ */
+
+if (!function_exists('get_team_division_name')) {
+    function get_team_division_name($team_id) {
+        $terms = get_the_terms($team_id, 'division');
+        if ($terms && !is_wp_error($terms)) {
+            return $terms[0]->name;
+        }
+        return 'Unassigned';
+    }
 }
