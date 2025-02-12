@@ -1,0 +1,1197 @@
+
+/**
+ * Template Name: UPA Perks Dashboard
+ */
+
+// -----------------------------------------------------------------------------
+// 1) MAIN SHORTCODE [upa_perks_dashboard] + MEMBERSHIP CHECKS
+// -----------------------------------------------------------------------------
+
+if ( ! function_exists( 'display_upa_perks_dashboard' ) ) {
+
+    function display_upa_perks_dashboard() {
+        // Must be logged in
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            return '<p class="upa-error">Error: You must be logged in to view your perks.</p>';
+        }
+
+        /**
+         * Adjust these membership IDs to match your setup:
+         *   Plus  = 5
+         *   Pro   = 6
+         *   Elite = 10
+         */
+        $is_plus_member  = pmpro_hasMembershipLevel( 5, $user_id );
+        $is_pro_member   = pmpro_hasMembershipLevel( 6, $user_id );
+        $is_elite_member = pmpro_hasMembershipLevel(10, $user_id );
+
+        // Start Output Buffer
+        ob_start();
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>UPA Perks Dashboard</title>
+
+            <!-- Tailwind (Optional: remove if it conflicts with Elementor/your theme) -->
+            <link rel="stylesheet" href="https://cdn.tailwindcss.com" />
+
+            <style>
+                body {
+                    background-color: #f5f5f5;
+                    font-family: Arial, sans-serif;
+                }
+                .dashboard-container {
+                    max-width: 1200px;
+                    margin: 20px auto;
+                    padding: 20px;
+                    background-color: white;
+                    border: 2px solid #d3d3d3;
+                    border-radius: 10px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                }
+                .dashboard-header {
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: #0a2769;
+                    text-align: center;
+                    margin-bottom: 20px;
+                }
+                .tab-buttons {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    margin-bottom: 20px;
+                }
+                .tab-button {
+                    background-color: #f5f5f5;
+                    color: #0a2769;
+                    padding: 10px 20px;
+                    margin: 5px;
+                    border: 2px solid #0a2769;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+                .tab-button.active {
+                    background-color: #b6094b;
+                    color: white;
+                }
+                .tab-button:hover {
+                    background-color: #0a2769;
+                    color: white;
+                }
+                .content-section {
+                    display: none;
+                    padding: 20px;
+                    border-top: 2px solid #e5e5e5;
+                }
+                .content-section.active {
+                    display: block;
+                }
+                h2 {
+                    font-size: 22px;
+                    font-weight: bold;
+                    color: #0a2769;
+                    margin-bottom: 15px;
+                }
+                p {
+                    font-size: 16px;
+                    color: #333;
+                    margin-bottom: 10px;
+                }
+                .btn-action {
+                    background-color: #b6094b;
+                    color: white;
+                    padding: 10px 20px;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 16px;
+                    font-weight: bold;
+                    transition: all 0.3s ease;
+                }
+                .btn-action:hover {
+                    background-color: #0a2769;
+                }
+
+                @media (max-width: 768px) {
+                    .tab-buttons {
+                        flex-direction: column;
+                        align-items: center;
+                    }
+                    .tab-button {
+                        width: 90%;
+                        text-align: center;
+                    }
+                    .dashboard-container {
+                        padding: 15px;
+                    }
+                    h2 {
+                        font-size: 20px;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="dashboard-container">
+                <h1 class="dashboard-header">Membership Dashboard</h1>
+
+                <!-- NAV TABS -->
+                <div class="tab-buttons">
+                    <!-- Always shown tabs -->
+                    <button class="tab-button active" data-tab="user-info">User Info</button>
+                    <button class="tab-button" data-tab="membership-benefits">Membership Benefits</button>
+                    <button class="tab-button" data-tab="stackable-discounts">Stackable Discounts</button>
+                    <button class="tab-button" data-tab="roster-changes">Roster Changes</button>
+
+                    <!-- Elite Only -->
+                    <?php if ( $is_elite_member ): ?>
+                        <button class="tab-button" data-tab="virtual-events">Free Virtual Events</button>
+                    <?php endif; ?>
+
+                    <!-- Pro or Plus Only -->
+                    <?php if ( $is_pro_member || $is_plus_member ): ?>
+                        <button class="tab-button" data-tab="team-perks">Team Perks</button>
+                    <?php endif; ?>
+
+                    <!-- Always shown -->
+                    <button class="tab-button" data-tab="active-coupons">Active Coupons</button>
+                    <button class="tab-button" data-tab="skip-the-season">Skip the Season</button>
+                    <button class="tab-button" data-tab="cancel-membership">Cancel Membership</button>
+                </div>
+
+                <!-- CONTENT SECTIONS -->
+                <!-- 1) User Info -->
+                <div id="user-info" class="content-section active">
+                    <h2>User Information</h2>
+                    <div>
+                        <?php 
+                        if ( function_exists( 'get_user_info' ) ) {
+                            echo get_user_info( $user_id );
+                        } else {
+                            echo '<p class="upa-error">User information is not available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+
+                <!-- 2) Membership Benefits -->
+                <div id="membership-benefits" class="content-section">
+                    <h2>Membership Benefits</h2>
+                    <div>
+                        <?php 
+                        if ( function_exists( 'get_individual_perks' ) ) {
+                            echo get_individual_perks( $user_id );
+                        } else {
+                            echo '<p>No Membership Benefits available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+
+                <!-- 3) Stackable Discounts -->
+                <div id="stackable-discounts" class="content-section">
+                    <h2>Stackable Discounts</h2>
+                    <div>
+                        <?php 
+                        if ( function_exists( 'get_stackable_discounts' ) ) {
+                            echo get_stackable_discounts( $user_id );
+                        } else {
+                            echo '<p>No Stackable Discounts available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+
+                <!-- 4) Roster Changes -->
+                <div id="roster-changes" class="content-section">
+                    <h2>Roster Changes</h2>
+                    <div>
+                        <?php 
+                        if ( function_exists('get_roster_and_emergency_change_coupons') ) {
+                            echo get_roster_and_emergency_change_coupons( $user_id );
+                        } else {
+                            echo '<p>No Roster Changes available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+
+                <!-- 5) Free Virtual Events (Elite Only) -->
+                <?php if ( $is_elite_member ): ?>
+                <div id="virtual-events" class="content-section">
+                    <h2>Free Virtual Events</h2>
+                    <div>
+                        <?php
+                        if ( function_exists('get_elite_perks') ) {
+                            echo get_elite_perks( $user_id );
+                        } else {
+                            echo '<p>No Free Virtual Events available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- 6) Team Perks (Pro or Plus Only) -->
+                <?php if ( $is_pro_member || $is_plus_member ): ?>
+                <div id="team-perks" class="content-section">
+                    <h2>Team Perks</h2>
+                    <div>
+                        <?php 
+                        if ( function_exists('get_team_perks') ) {
+                            echo get_team_perks( $user_id );
+                        } else {
+                            echo '<p>No Team Perks available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- 7) Active Coupons -->
+                <div id="active-coupons" class="content-section">
+                    <h2>Active Coupons</h2>
+                    <div>
+                        <?php 
+                        if ( function_exists('get_active_perks') ) {
+                            echo get_active_perks( $user_id );
+                        } else {
+                            echo '<p>No Active Coupons available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+
+                <!-- 8) Skip the Season -->
+                <div id="skip-the-season" class="content-section">
+                    <h2>Skip the Season</h2>
+                    <div>
+                        <?php
+                        if ( function_exists('display_season_skips') ) {
+                            echo display_season_skips( $user_id );
+                        } else {
+                            echo '<p>No Skip the Season option available.</p>';
+                        }
+                        ?>
+                    </div>
+                </div>
+
+                <!-- 9) Cancel Membership -->
+                <div id="cancel-membership" class="content-section">
+                    <h2>Cancel Membership</h2>
+                    <form method="POST">
+                        <button type="submit" name="cancel_membership" class="btn-action">
+                            Cancel My Membership
+                        </button>
+                    </form>
+                </div>
+            </div><!-- /.dashboard-container -->
+
+            <!-- TAB SWITCHING SCRIPT -->
+            <script>
+                const tabs = document.querySelectorAll('.tab-button');
+                const sections = document.querySelectorAll('.content-section');
+
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        // Deactivate everything
+                        tabs.forEach(t => t.classList.remove('active'));
+                        sections.forEach(s => s.classList.remove('active'));
+
+                        // Activate the clicked tab + corresponding section
+                        tab.classList.add('active');
+                        document.getElementById(
+                            tab.getAttribute('data-tab')
+                        ).classList.add('active');
+                    });
+                });
+            </script>
+        </body>
+        </html>
+        <?php
+        return ob_get_clean();
+    }
+}
+
+// Register [upa_perks_dashboard] once
+if ( ! shortcode_exists( 'upa_perks_dashboard' ) ) {
+    add_shortcode( 'upa_perks_dashboard', 'display_upa_perks_dashboard' );
+}
+
+
+// -----------------------------------------------------------------------------
+// 2) ALL PERKS & UTILITY FUNCTIONS (NO DUPLICATES)
+// -----------------------------------------------------------------------------
+
+/** 
+ * 2a) get_individual_perks($user_id)
+ *     Called from "Membership Benefits" tab.
+ *     If you have specific logic for membership benefits, put it here.
+ */
+function get_individual_perks($user_id) {
+    if (!function_exists('pmpro_hasMembershipLevel')) {
+        return '<p class="upa-error">Error: Membership perks are unavailable.</p>';
+    }
+
+    $output = '<ul>';
+    if (pmpro_hasMembershipLevel(10, $user_id)) { // Elite Member
+        $output .= '<li>3 Free roster changes</li>';
+        $output .= '<li>1 Free Emergency roster change</li>';
+        $output .= '<li>2 Free eligible UPA Virtual Events</li>';
+        $output .= '<li>Unlimited regular season skips</li>';
+        $output .= '<li>20% off UPA Virtual Events (auto-applied)</li>';
+        $output .= '<li>50% off additional roster changes (auto-applied)</li>';
+    } elseif (pmpro_hasMembershipLevel(6, $user_id)) { // Pro Member
+        $output .= '<li>1 Free roster change</li>';
+        $output .= '<li>1 Free Emergency roster change</li>';
+        $output .= '<li>20% off UPA Virtual Events (auto-applied)</li>';
+        $output .= '<li>5% off jerseys & merch</li>';
+        $output .= '<li>50% off additional roster changes (auto-applied)</li>';
+    } elseif (pmpro_hasMembershipLevel(5, $user_id)) { // Plus Member
+        $output .= '<li>1 Free roster change</li>';
+        $output .= '<li>10% off UPA Virtual Events (auto-applied)</li>';
+        $output .= '<li>5% off live event tickets</li>';
+        $output .= '<li>Free Agent Database Access (Free, Coming Soon)</li>';
+        $output .= '<li>50% off additional roster changes (auto-applied)</li>';
+    } else {
+        $output .= '<li>You do not have an active membership. Please subscribe to access perks.</li>';
+    }
+    $output .= '</ul>';
+    return $output;
+}
+/**
+ * 2b) Basic "User Information" data
+ */
+if ( ! function_exists('get_user_info') ) {
+    function get_user_info( $user_id ) {
+        if ( ! $user_id || ! is_user_logged_in() ) {
+            return '<p class="upa-error">You must be logged in to view your information.</p>';
+        }
+        $user_info = get_userdata( $user_id );
+        if ( ! $user_info ) {
+            return '<p class="upa-error">Unable to retrieve user information.</p>';
+        }
+
+        $display_name = esc_html( $user_info->display_name ?? 'N/A' );
+        $username     = esc_html( $user_info->user_login ?? 'N/A' );
+
+        // Membership info
+        $membership_name = 'No Membership';
+        $expiration_date = 'N/A';
+        if ( function_exists('pmpro_getMembershipLevelForUser') ) {
+            $membership_level = pmpro_getMembershipLevelForUser( $user_id );
+            if ( $membership_level ) {
+                $membership_name = esc_html( $membership_level->name ?? 'No Membership' );
+                $expiration_date = ! empty( $membership_level->enddate )
+                    ? date( 'F j, Y', strtotime($membership_level->enddate) )
+                    : 'N/A';
+            }
+        }
+
+        // Example: Team info (BuddyBoss Groups)
+        $team_name = 'N/A';
+        if ( function_exists( 'groups_get_user_groups' ) ) {
+            $user_groups = groups_get_user_groups( $user_id );
+            if ( ! empty( $user_groups['groups'] ) && function_exists('groups_get_group') ) {
+                $group = groups_get_group( reset( $user_groups['groups'] ) );
+                if ( $group && isset( $group->name ) ) {
+                    $team_name = esc_html( $group->name );
+                }
+            }
+        }
+
+        $output = "<div class='user-info'>
+            <p><strong>Name:</strong> $display_name</p>
+            <p><strong>Username:</strong> $username</p>
+            <p><strong>Membership:</strong> $membership_name</p>
+            <p><strong>Expiration Date:</strong> $expiration_date</p>
+            <p><strong>Team Name:</strong> $team_name</p>
+        </div>";
+
+        return $output;
+    }
+}
+
+
+/**
+ * 2c) get_active_perks($user_id) 
+ *     "Active Coupons" logic (WooCommerce).
+ */
+if ( ! function_exists( 'get_active_perks' ) ) {
+    function get_active_perks( $user_id ) {
+        if ( ! class_exists( 'WooCommerce' ) ) {
+            return '<p class="upa-error">WooCommerce is not active. Active perks cannot be displayed.</p>';
+        }
+
+        $args = [
+            'post_type'   => 'shop_coupon',
+            'post_status' => 'publish',
+            'author'      => $user_id,
+            'meta_query'  => [
+                [
+                    'key'     => 'expiry_date',
+                    'value'   => date( 'Y-m-d' ),
+                    'compare' => '>=',
+                    'type'    => 'DATE',
+                ],
+            ],
+        ];
+
+        $coupons = get_posts( $args );
+        if ( empty( $coupons ) ) {
+            return '<p class="upa-message">You have no active perks at the moment. Create a coupon to see it here.</p>';
+        }
+
+        $output = '<style>
+            .upa-active-perks { list-style: none; padding: 0; margin: 0; }
+            .upa-active-perks li {
+                margin-bottom: 20px;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                background-color: #f9f9f9;
+            }
+            .upa-active-perks .coupon-code {
+                font-size: 18px;
+                font-weight: bold;
+                color: #b6094b;
+            }
+            .upa-active-perks .coupon-expiry {
+                font-size: 14px;
+                color: #333;
+            }
+        </style>';
+        $output .= '<ul class="upa-active-perks">';
+
+        foreach ( $coupons as $coupon ) {
+            $coupon_code = $coupon->post_title;
+            $description = $coupon->post_content ?: 'No description available.';
+            $expiry_date = get_post_meta( $coupon->ID, 'expiry_date', true );
+            $usage_limit = get_post_meta( $coupon->ID, 'usage_limit', true );
+            $usage_count = get_post_meta( $coupon->ID, 'usage_count', true );
+
+            // Validate
+            if ( ! $expiry_date || strtotime($expiry_date) < time() 
+                || ( $usage_limit && $usage_count >= $usage_limit ) ) {
+                continue;
+            }
+
+            $output .= '<li>';
+            $output .= '<p class="coupon-code">Code: ' . esc_html($coupon_code) . '</p>';
+            $output .= '<p>Description: ' . esc_html($description) . '</p>';
+            $output .= '<p class="coupon-expiry">Expires on: ' 
+                . esc_html( date('F j, Y', strtotime($expiry_date)) ) 
+                . '</p>';
+            $output .= '</li>';
+        }
+        $output .= '</ul>';
+
+        if ( trim($output) === '<ul class="upa-active-perks"></ul>' ) {
+            return '<p class="upa-message">You have no active perks at the moment. Create a coupon to see it here.</p>';
+        }
+
+        return $output;
+    }
+}
+
+
+/**
+ * 2d) MASTER create_woocommerce_coupon_custom() 
+ *     Replaces any repeated create_woocommerce_coupon calls
+ */
+if ( ! function_exists( 'create_woocommerce_coupon_custom' ) ) {
+    function create_woocommerce_coupon_custom( $code, $description, $category, $expiration_date ) {
+        $coupon_data = [
+            'post_title'   => $code,
+            'post_content' => $description,
+            'post_status'  => 'publish',
+            'post_author'  => get_current_user_id(),
+            'post_type'    => 'shop_coupon',
+        ];
+        $coupon_id = wp_insert_post( $coupon_data );
+
+        if ( $coupon_id ) {
+            update_post_meta( $coupon_id, 'discount_type', 'percent' );
+            update_post_meta( $coupon_id, 'coupon_amount', '100' );
+            update_post_meta( $coupon_id, 'individual_use', 'yes' );
+            update_post_meta( $coupon_id, 'usage_limit', 1 );
+            update_post_meta( $coupon_id, 'product_categories', [ $category ] );
+            update_post_meta( $coupon_id, 'expiry_date', $expiration_date );
+        }
+
+        return $coupon_id;
+    }
+}
+
+
+/**
+ * 2e) TEAM PERKS
+ */
+if ( ! function_exists( 'get_team_perks' ) ) {
+    function get_team_perks( $user_id ) {
+        if ( ! function_exists('groups_get_user_groups') ) {
+            return '<p class="upa-error">Team-based perks are unavailable. Please ensure BuddyBoss Groups are enabled.</p>';
+        }
+
+        // Get user's groups
+        $user_groups = groups_get_user_groups($user_id);
+        if ( empty($user_groups['groups']) ) {
+            return '<p class="upa-message">You are not part of a team. Join a team to unlock team-based perks!</p>';
+        }
+
+        // We'll just use the first group
+        $group_id = reset( $user_groups['groups'] );
+        $group_members = groups_get_group_members( [ 'group_id' => $group_id ] );
+
+        // Count membership levels in group
+        $membership_counts = [ 'plus' => 0, 'pro' => 0, 'elite' => 0 ];
+        // Check membership for current user
+        if ( pmpro_hasMembershipLevel(5, $user_id) ) {
+            $membership_counts['plus']++;
+        } elseif ( pmpro_hasMembershipLevel(6, $user_id) ) {
+            $membership_counts['pro']++;
+        } elseif ( pmpro_hasMembershipLevel(10, $user_id) ) {
+            $membership_counts['elite']++;
+        }
+
+        // Check membership for other group members
+        foreach ( $group_members['members'] as $member ) {
+            $member_id = $member->user_id;
+            if ( $member_id == $user_id ) continue;
+
+            if ( pmpro_hasMembershipLevel(5, $member_id) ) {
+                $membership_counts['plus']++;
+            } elseif ( pmpro_hasMembershipLevel(6, $member_id) ) {
+                $membership_counts['pro']++;
+            } elseif ( pmpro_hasMembershipLevel(10, $member_id) ) {
+                $membership_counts['elite']++;
+            }
+        }
+
+        // Define which perks are unlocked
+        $perks = [
+            'amateur_tournament' => [
+                'eligible'    => $membership_counts['plus'] + $membership_counts['pro'] + $membership_counts['elite'] >= 3,
+                'description' => 'Free UPA Amateur League Event',
+                'prefix'      => 'AMATEUR',
+                'category'    => 'Amateur League',
+            ],
+            'pro_tournament' => [
+                'eligible'    => $membership_counts['pro'] + $membership_counts['elite'] >= 3,
+                'description' => 'Pro Members-Only Exclusive Tournament',
+                'prefix'      => 'PRO',
+                'category'    => 'Exclusive Tournaments',
+            ],
+        ];
+
+        $current_month = date('Y-m');
+        $output = '<style>
+            .upa-perk { margin-bottom: 20px; }
+            .upa-perk .upa-coupon,
+            .upa-perk form { margin-bottom: 10px; }
+        </style>';
+
+        // Loop each perk
+        foreach ( $perks as $perk_key => $perk_data ) {
+            $meta_key = "used_{$perk_key}_{$current_month}";
+            $used_perk = get_user_meta($user_id, $meta_key, true);
+
+            $output .= '<div class="upa-perk">';
+            if ( $perk_data['eligible'] ) {
+                if ( ! $used_perk ) {
+                    // Show request form or handle form submission
+                    if ( $_SERVER['REQUEST_METHOD'] === 'POST'
+                        && ! empty($_POST['generate_coupon'])
+                        && $_POST['generate_coupon'] === $perk_key
+                    ) {
+                        $coupon_prefix = $perk_data['prefix'];
+                        $coupon_code   = strtoupper($coupon_prefix . '-' . wp_generate_password(8, false));
+                        update_user_meta( $user_id, $meta_key, $coupon_code );
+                        $expiration_date = date('Y-m-d', strtotime('+30 days'));
+
+                        // Use our master coupon creator
+                        create_woocommerce_coupon_custom(
+                            $coupon_code,
+                            $perk_data['description'],
+                            $perk_data['category'],
+                            $expiration_date
+                        );
+
+                        $output .= '<p class="upa-coupon">Your ' 
+                            . $perk_data['description'] . ' Code: <strong>' 
+                            . esc_html($coupon_code) . '</strong><br>Expires: ' 
+                            . esc_html(date('F j, Y', strtotime($expiration_date))) . '</p>';
+                    } else {
+                        // Show the request button
+                        $output .= '<form method="post">
+                            <input type="hidden" name="generate_coupon" value="' . esc_attr($perk_key) . '">
+                            <button type="submit" class="upa-perk-button">Request ' 
+                                . $perk_data['description'] . ' Code</button>
+                        </form>';
+                    }
+                } else {
+                    // Already used perk
+                    $output .= '<p class="upa-message warning">You have used your ' 
+                        . $perk_data['description'] . ' code for the month.</p>';
+                }
+            } else {
+                // Not eligible
+                // Figure out how many short
+                if ( $perk_key === 'amateur_tournament' ) {
+                    $have = $membership_counts['plus'] + $membership_counts['pro'] + $membership_counts['elite'];
+                } else {
+                    $have = $membership_counts['pro'] + $membership_counts['elite'];
+                }
+                $needed = max(0, 3 - $have);
+
+                $output .= '<p class="upa-message warning">You need ' 
+                    . $needed . ' more members to qualify.</p>';
+            }
+            $output .= '</div>';
+        }
+
+        return $output;
+    }
+}
+
+
+/**
+ * 2f) ROSTER AND EMERGENCY CHANGE COUPONS
+ */
+if ( ! function_exists( 'get_roster_and_emergency_change_coupons' ) ) {
+    function get_roster_and_emergency_change_coupons( $user_id ) {
+        if ( ! function_exists('pmpro_hasMembershipLevel') ) {
+            return '<p class="upa-error">Roster changes are unavailable. Please ensure PMPro is set up.</p>';
+        }
+
+        // membership tiers (Plus=5, Pro=6, Elite=10)
+        $membership_tiers = [
+            'Plus' => [ 'id' => 5,  'roster_changes' => 1, 'emergency_changes' => 0 ],
+            'Pro'  => [ 'id' => 6,  'roster_changes' => 1, 'emergency_changes' => 1 ],
+            'Elite'=> [ 'id' => 10, 'roster_changes' => 3, 'emergency_changes' => 1 ],
+        ];
+
+        $roster_changes    = 0;
+        $emergency_changes = 0;
+        foreach ( $membership_tiers as $tier => $details ) {
+            if ( pmpro_hasMembershipLevel($details['id'], $user_id) ) {
+                $roster_changes    = $details['roster_changes'];
+                $emergency_changes = $details['emergency_changes'];
+                break;
+            }
+        }
+
+        $current_month          = date('Y-m');
+        $used_roster_changes    = get_user_meta($user_id, "used_roster_changes_{$current_month}", true) ?: 0;
+        $used_emergency_changes = get_user_meta($user_id, "used_emergency_changes_{$current_month}", true) ?: 0;
+
+        $remaining_roster_changes    = max(0, $roster_changes - $used_roster_changes);
+        $remaining_emergency_changes = max(0, $emergency_changes - $used_emergency_changes);
+
+        $output = '<div class="upa-coupons">';
+        $output .= '<p><strong>Available Roster Changes:</strong> ' . $remaining_roster_changes . '</p>';
+
+        // Roster Changes
+        if ( $remaining_roster_changes > 0 ) {
+            $output .= '<form method="post">
+                <input type="hidden" name="generate_roster_coupon" value="1">
+                <button type="submit" class="upa-perk-button">Request Roster Change Code</button>
+            </form>';
+        } else {
+            $output .= '<p class="upa-message warning">You have used all your roster changes for this month.</p>';
+        }
+
+        // Emergency
+        $output .= '<p><strong>Available Emergency Roster Changes:</strong> ' . $remaining_emergency_changes . '</p>';
+        if ( $remaining_emergency_changes > 0 ) {
+            $output .= '<form method="post">
+                <input type="hidden" name="generate_emergency_coupon" value="1">
+                <button type="submit" class="upa-perk-button">Request Emergency Roster Change Code</button>
+            </form>';
+        } else {
+            $output .= '<p class="upa-message warning">You have used all your emergency roster changes for this month.</p>';
+        }
+
+        $output .= '</div>';
+
+        // Handle form POST
+        if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
+            if ( ! empty($_POST['generate_roster_coupon']) && $remaining_roster_changes > 0 ) {
+                update_user_meta($user_id, "used_roster_changes_{$current_month}", $used_roster_changes + 1);
+
+                $coupon_code = strtoupper('ROSTER-' . wp_generate_password(8, false));
+                $expiration_date = date('Y-m-d', strtotime('+30 days'));
+                create_woocommerce_coupon_custom(
+                    $coupon_code, 
+                    'Roster Change', 
+                    'Team Management', 
+                    $expiration_date
+                );
+                wp_redirect( add_query_arg('roster_coupon', $coupon_code) );
+                exit;
+            }
+
+            if ( ! empty($_POST['generate_emergency_coupon']) && $remaining_emergency_changes > 0 ) {
+                update_user_meta($user_id, "used_emergency_changes_{$current_month}", $used_emergency_changes + 1);
+
+                $coupon_code = strtoupper('EMERGENCY-' . wp_generate_password(8, false));
+                $expiration_date = date('Y-m-d', strtotime('+30 days'));
+                create_woocommerce_coupon_custom(
+                    $coupon_code,
+                    'Emergency Roster Change',
+                    'Team Management',
+                    $expiration_date
+                );
+                wp_redirect( add_query_arg('emergency_coupon', $coupon_code) );
+                exit;
+            }
+        }
+
+        // Display the generated coupon
+        if ( ! empty($_GET['roster_coupon']) ) {
+            $expiration_date = date('F j, Y', strtotime('+30 days'));
+            $output .= '<p class="upa-coupon">Your Roster Change Coupon: <strong>' 
+                . esc_html($_GET['roster_coupon']) 
+                . '</strong><br>Expires: ' 
+                . esc_html($expiration_date) . '</p>';
+        }
+        if ( ! empty($_GET['emergency_coupon']) ) {
+            $expiration_date = date('F j, Y', strtotime('+30 days'));
+            $output .= '<p class="upa-coupon">Your Emergency Roster Change Coupon: <strong>'
+                . esc_html($_GET['emergency_coupon']) 
+                . '</strong><br>Expires: ' 
+                . esc_html($expiration_date) . '</p>';
+        }
+
+        return $output;
+    }
+}
+
+
+/**
+ * 2g) STACKABLE DISCOUNTS
+ */
+if ( ! function_exists('get_stackable_discounts') ) {
+    function get_stackable_discounts( $user_id ) {
+        if ( ! function_exists('groups_get_user_groups') ) {
+            return '<p class="upa-error">Stackable discounts are unavailable. Please ensure groups are enabled.</p>';
+        }
+
+        // Membership tiers and discount logic
+        $membership_discounts = [
+            'Plus' => [ 'id' => 5, 'discount' => 10, 'max_discount' => 50 ],
+            'Pro'  => [ 'id' => 6, 'discount' => 20, 'max_discount' => 100 ],
+        ];
+
+        // If user is Elite
+        if ( pmpro_hasMembershipLevel(10, $user_id) ) {
+            return '<p class="upa-message warning">This Perk is not available to Elite Members.</p>';
+        }
+
+        // Find user's tier among 'Plus'/'Pro'
+        $user_tier = '';
+        foreach ( $membership_discounts as $tier => $details ) {
+            if ( pmpro_hasMembershipLevel($details['id'], $user_id) ) {
+                $user_tier = $tier;
+                break;
+            }
+        }
+        if ( ! $user_tier ) {
+            return '<p class="upa-message">You do not qualify for stackable discounts. Upgrade your membership to qualify.</p>';
+        }
+
+        // Check group membership
+        $user_groups = groups_get_user_groups($user_id);
+        if ( empty($user_groups['groups']) ) {
+            // Just return base discount if user has no group
+            return calculate_base_discount_for_stackable($user_id, $membership_discounts, $user_tier );
+        }
+
+        // If user has a group, sum up the discount among group members with same tier
+        $group_id = reset( $user_groups['groups'] );
+        $group_members = groups_get_group_members( [ 'group_id' => $group_id ] );
+
+        $total_discount = $membership_discounts[$user_tier]['discount'];
+        $max_discount   = $membership_discounts[$user_tier]['max_discount'];
+
+        if ( ! empty($group_members['members']) ) {
+            foreach ( $group_members['members'] as $member ) {
+                $member_id = $member->user_id;
+                // Only add discount if they share the same tier
+                if ( pmpro_hasMembershipLevel($membership_discounts[$user_tier]['id'], $member_id) ) {
+                    $total_discount += $membership_discounts[$user_tier]['discount'];
+                    if ( $total_discount >= $max_discount ) {
+                        $total_discount = $max_discount;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Output discount form
+        $output = '';
+        if ( $total_discount > 0 ) {
+            $output .= '<p>Your team qualifies for a ' . $total_discount . '% discount.</p>';
+            $output .= '<form method="post">
+                <input type="hidden" name="generate_discount_coupon" value="' . intval($total_discount) . '">
+                <button type="submit" class="upa-perk-button">Request ' 
+                  . $total_discount . '% Discount Coupon</button>
+            </form>';
+        } else {
+            $output .= '<p class="upa-message">You do not qualify for a stackable discount. Add more teammates with the same tier.</p>';
+        }
+
+        // Process form submission
+        if ( $_SERVER['REQUEST_METHOD'] === 'POST'
+            && ! empty($_POST['generate_discount_coupon']) 
+        ) {
+            $discount = (int) $_POST['generate_discount_coupon'];
+            // Generate coupon
+            $expiration_date = date('Y-m-d', strtotime('+30 days'));
+            $coupon_code = strtoupper('TEAM-' . wp_generate_password(8, false) . '-' . $discount );
+            create_woocommerce_coupon_custom( 
+                $coupon_code,
+                'Team Discount',
+                'Team Management',
+                $expiration_date
+            );
+
+            // Redirect
+            wp_redirect( add_query_arg('coupon_code', $coupon_code) );
+            exit;
+        }
+
+        // Show coupon code after redirect
+        if ( ! empty($_GET['coupon_code']) ) {
+            $expiration_date = date('F j, Y', strtotime('+30 days'));
+            $output .= '<div class="upa-coupon">';
+            $output .= '<p>Your Stackable Discount Code: <strong>'
+                . esc_html($_GET['coupon_code']) . '</strong></p>';
+            $output .= '<p>Expires: <strong>' 
+                . esc_html($expiration_date) . '</strong></p>';
+            $output .= '</div>';
+        }
+
+        return $output;
+    }
+}
+
+// Helper to show "base discount" if no group
+if ( ! function_exists('calculate_base_discount_for_stackable') ) {
+    function calculate_base_discount_for_stackable($user_id, $membership_discounts, $user_tier ) {
+        // Basic discount if user is alone
+        $base = $membership_discounts[$user_tier]['discount'];
+        return '<p>Your base stackable discount is ' . $base . '%. Join a team with more ' 
+            . $user_tier . ' members to increase it.</p>';
+    }
+}
+
+
+/**
+ * 2h) ELITE PERKS (Free Virtual Events)
+ */
+if ( ! function_exists('get_elite_perks') ) {
+    function get_elite_perks( $user_id ) {
+        if ( ! function_exists('pmpro_hasMembershipLevel') ) {
+            return '<p class="upa-error">Elite perks are unavailable. Please ensure membership levels are set up.</p>';
+        }
+
+        // ID for Elite is 10
+        $elite_id         = 10;
+        $max_codes_per_mo = 2;
+
+        if ( ! pmpro_hasMembershipLevel($elite_id, $user_id) ) {
+            return '<p class="upa-message warning">You do not qualify for Elite perks. Upgrade to Elite membership to access these perks.</p>';
+        }
+
+        $current_month = date('Y-m');
+        $used_codes    = get_user_meta($user_id, "elite_codes_used_{$current_month}", true) ?: 0;
+        $remaining     = max(0, $max_codes_per_mo - $used_codes);
+
+        $output = '<div class="upa-coupons">';
+        if ( $remaining > 0 ) {
+            $output .= '<p><strong>Free Virtual Event Codes Available:</strong> ' . $remaining . '</p>';
+            $output .= '<form method="post">
+                <input type="hidden" name="generate_elite_code" value="1">
+                <button type="submit" class="upa-perk-button">Request Virtual Event Code</button>
+            </form>';
+        } else {
+            $output .= '<p class="upa-message warning">You have used all your Free Virtual Event Codes for the month.</p>';
+        }
+        $output .= '</div>';
+
+        // Handle form
+        if ( $_SERVER['REQUEST_METHOD'] === 'POST'
+            && ! empty($_POST['generate_elite_code'])
+            && $remaining > 0
+        ) {
+            update_user_meta($user_id, "elite_codes_used_{$current_month}", $used_codes + 1);
+
+            $coupon_code    = strtoupper('VIRTUAL-' . wp_generate_password(8, false));
+            $expiration_date= date('Y-m-d', strtotime('+30 days'));
+
+            create_woocommerce_coupon_custom(
+                $coupon_code, 
+                'Free Virtual Event Code',
+                'Virtual Events',
+                $expiration_date
+            );
+
+            // Redirect to show code
+            wp_redirect( add_query_arg('elite_coupon', $coupon_code) );
+            exit;
+        }
+
+        // Display after redirect
+        if ( ! empty($_GET['elite_coupon']) ) {
+            $coupon_code     = sanitize_text_field($_GET['elite_coupon']);
+            $expiration_date = date('F j, Y', strtotime('+30 days'));
+
+            $output .= '<p class="upa-coupon">Your Virtual Event Code: <strong>'
+                . esc_html($coupon_code) . '</strong><br>Expires: ' 
+                . esc_html($expiration_date) . '</p>';
+        }
+
+        return $output;
+    }
+}
+
+
+/**
+ * 2i) SEASON SKIPS
+ */
+if ( ! function_exists('display_season_skips') ) {
+    function display_season_skips( $user_id ) {
+        if ( ! function_exists('groups_get_user_groups') ) {
+            return '<p class="upa-error">Season skips are unavailable. Ensure BuddyBoss Groups are enabled.</p>';
+        }
+
+        $season_skips        = 0;
+        $eligibility_message = '';
+        $warning_message     = '';
+
+        // Elite gets unlimited
+        if ( pmpro_hasMembershipLevel(10, $user_id) ) {
+            $season_skips = '∞';
+        } else {
+            // For Pro members or shared group logic
+            $membership_counts = [ 'pro' => 0 ];
+
+            if ( pmpro_hasMembershipLevel(6, $user_id) ) {
+                $membership_counts['pro']++;
+            }
+
+            // Check the group
+            $user_groups = groups_get_user_groups($user_id);
+            if ( ! empty($user_groups['groups']) ) {
+                $group_id      = reset($user_groups['groups']);
+                $group_members = groups_get_group_members(['group_id' => $group_id]);
+
+                foreach ($group_members['members'] as $member) {
+                    $member_id = $member->user_id;
+                    if ( $member_id == $user_id ) continue;
+                    if ( pmpro_hasMembershipLevel(6, $member_id) ) {
+                        $membership_counts['pro']++;
+                    }
+                }
+            }
+
+            // If at least 3 Pro members in group => 1 season skip
+            $total_eligible_members = $membership_counts['pro'];
+            if ( $total_eligible_members >= 3 ) {
+                $season_skips = 1;
+            }
+
+            // Check usage
+            $current_month = date('Y-m');
+            $used_skips = get_user_meta($user_id, "used_season_skips_{$current_month}", true) ?: 0;
+
+            if ( $season_skips > 0 && $used_skips >= 1 ) {
+                // Already used skip
+                $season_skips = 0;
+            }
+
+            // If not eligible
+            if ( $season_skips === 0 && $used_skips === 0 && $total_eligible_members < 3 ) {
+                $needed = max(0, 3 - $total_eligible_members);
+                $eligibility_message = '<p>You are not eligible for any season skips. Add ' 
+                    . $needed . ' more ' . ($needed === 1 ? 'Pro Member' : 'Pro Members') 
+                    . ' to be eligible.</p>';
+            } elseif ( $season_skips === 0 && $used_skips > 0 ) {
+                $warning_message = '<p class="upa-message warning">You have used your season skip for this month.</p>';
+            }
+        }
+
+        // Start display
+        $output = '<div class="season-skips">';
+
+        // Show how many available
+        if ( $season_skips === '∞' ) {
+            $output .= '<p><strong>Available Season Skips:</strong> ∞</p>';
+        } else {
+            $output .= '<p><strong>Available Season Skips:</strong> ' . $season_skips . '</p>';
+        }
+
+        // Messages
+        $output .= $eligibility_message;
+        $output .= $warning_message;
+
+        // Show request form if user can skip
+        if ( $season_skips === '∞' || ( is_numeric($season_skips) && $season_skips > 0 ) ) {
+            $output .= '<button id="request-skip-button" class="upa-perk-button">Request Season Skip</button>';
+            $output .= '<form id="season-skip-form" method="post" style="display:none; margin-top: 20px;">';
+
+            // Team name
+            $output .= '<div style="margin-bottom: 15px;">
+                <label for="team-name" style="display: block; font-weight: bold;">Team Name:</label>
+                <input id="team-name" name="team_name" type="text" placeholder="Enter your team name" required
+                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px;">
+            </div>';
+
+            // League
+            $output .= '<div style="margin-bottom: 15px;">
+                <label for="league-select" style="display: block; font-weight: bold;">What League?</label>
+                <select id="league-select" name="league" required
+                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px;">
+                    <option value="WR">WR</option>
+                    <option value="MPBA">MPBA</option>
+                    <option value="SL">SL</option>
+                    <option value="Rising Stars">Rising Stars</option>
+                    <option value="UPA">UPA</option>
+                </select>
+            </div>';
+
+            // Email
+            $output .= '<div style="margin-bottom: 15px;">
+                <label for="email" style="display: block; font-weight: bold;">Email:</label>
+                <input id="email" name="email" type="email" placeholder="Enter your email" required
+                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px;">
+            </div>';
+
+            // Discord
+            $output .= '<div style="margin-bottom: 15px;">
+                <label for="discord-username" style="display: block; font-weight: bold;">Discord Username:</label>
+                <input id="discord-username" name="discord_username" type="text" placeholder="Enter your Discord username" required
+                    style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px;">
+            </div>';
+
+            // Submit
+            $output .= '<button type="submit" class="upa-perk-button">Submit</button>';
+            $output .= '</form>';
+        }
+
+        // Handle form post
+        if ( $_SERVER['REQUEST_METHOD'] === 'POST'
+            && ! empty($_POST['team_name'])
+            && ! empty($_POST['league'])
+            && ! empty($_POST['email'])
+            && ! empty($_POST['discord_username'])
+        ) {
+            $team_name        = sanitize_text_field($_POST['team_name']);
+            $league           = sanitize_text_field($_POST['league']);
+            $email            = sanitize_email($_POST['email']);
+            $discord_username = sanitize_text_field($_POST['discord_username']);
+            $display_name     = wp_get_current_user()->display_name;
+
+            $to      = 'admin@unifiedproam.gg';
+            $subject = 'Season Skip Request for ' . $league . ' from ' . $team_name;
+            $message = "User ID: $user_id\nDisplay Name: $display_name\n"
+                     . "Team Name: $team_name\nLeague: $league\nEmail: $email\n"
+                     . "Discord Username: $discord_username\n";
+            $headers = [ 'Content-Type: text/plain; charset=UTF-8' ];
+
+            wp_mail( $to, $subject, $message, $headers );
+
+            // Mark skip used if not infinite
+            if ( $season_skips !== '∞' && $season_skips > 0 ) {
+                $current_month = date('Y-m');
+                $used_skips = get_user_meta($user_id, "used_season_skips_{$current_month}", true) ?: 0;
+                update_user_meta($user_id, "used_season_skips_{$current_month}", $used_skips + 1);
+            }
+
+            // Show success
+            $output .= '<p class="upa-message success" id="submission-message">'
+                . 'Your Season Skip Request has been successfully submitted for admin review.</p>';
+            $output .= '<script>
+                setTimeout(() => {
+                    const msg = document.getElementById("submission-message");
+                    if(msg) msg.remove();
+                    const form = document.getElementById("season-skip-form");
+                    if(form) form.reset();
+                    if(form) form.style.display = "none";
+                    const btn = document.getElementById("request-skip-button");
+                    if(btn) btn.style.display = "none";
+                }, 5000);
+            </script>';
+        }
+
+        $output .= '</div>'; // .season-skips
+
+        // Show form if button clicked
+        $output .= '<script>
+            (function(){
+                const btn = document.getElementById("request-skip-button");
+                if(btn) {
+                    btn.addEventListener("click", function(){
+                        const form = document.getElementById("season-skip-form");
+                        if(form) form.style.display = "block";
+                        btn.style.display = "none";
+                    });
+                }
+            })();
+        </script>';
+
+        return $output;
+    }
+}
+
+
+// -----------------------------------------------------------------------------
+// 3) HOOKS FOR RESETTING PERKS/COUPONS ON MEMBERSHIP LEVEL CHANGE
+// -----------------------------------------------------------------------------
+
+/** 3a) Reset Team Perks on renewal */
+if ( ! function_exists('reset_team_perks_on_renewal') ) {
+    function reset_team_perks_on_renewal( $level_id, $user_id ) {
+        $meta_keys_to_reset = [
+            'used_amateur_tournament_' . date('Y-m'),
+            'used_pro_tournament_' . date('Y-m'),
+        ];
+        foreach ( $meta_keys_to_reset as $meta_key ) {
+            delete_user_meta($user_id, $meta_key);
+        }
+    }
+}
+add_action( 'pmpro_after_change_membership_level', 'reset_team_perks_on_renewal', 10, 2 );
+
+
+/** 3b) Reset Roster & Emergency Changes on membership renewal */
+add_action( 'pmpro_after_change_membership_level', function($level_id, $user_id) {
+    $current_month = date('Y-m');
+    delete_user_meta($user_id, "used_roster_changes_{$current_month}");
+    delete_user_meta($user_id, "used_emergency_changes_{$current_month}");
+}, 10, 2 );
+
+
+/** 3c) Reset Elite Codes after Checkout if membership is Elite */
+add_action( 'pmpro_after_checkout', function($user_id, $order) {
+    $elite_id = 10; 
+    $level = pmpro_getMembershipLevelForUser($user_id);
+
+    if ( $level && $level->id == $elite_id ) {
+        $current_month = date('Y-m');
+        delete_user_meta($user_id, "elite_codes_used_{$current_month}");
+    }
+}, 10, 2 );
+
+
+/** 3d) Reset Season Skips on membership renewal */
+add_action( 'pmpro_after_change_membership_level', function($level_id, $user_id) {
+    $current_month = date('Y-m');
+    delete_user_meta($user_id, "used_season_skips_{$current_month}");
+}, 10, 2 );
