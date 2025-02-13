@@ -1725,17 +1725,21 @@ function render_team_points_manager_page() {
 function add_game_columns($columns) {
     $new_columns = array();
     foreach ($columns as $key => $value) {
-        $new_columns[$key] = $value;
         if ($key === 'title') {
+            $new_columns[$key] = $value;
             $new_columns['game_teams'] = 'Teams';
             $new_columns['game_score'] = 'Score';
             $new_columns['game_points'] = 'Points';
+            $new_columns['date'] = 'Date';
             $new_columns['game_date'] = 'Game Date';
+            $new_columns['game_season'] = 'Season';
+        } elseif ($key !== 'seasons' && $key !== 'season') {
+            $new_columns[$key] = $value;
         }
     }
     return $new_columns;
 }
-add_filter('manage_game_posts_columns', 'add_game_columns');
+add_filter('manage_game_posts_columns', 'add_game_columns', 20);
 
 // Fill custom columns with game data
 function fill_game_columns($column, $post_id) {
@@ -1774,7 +1778,23 @@ function fill_game_columns($column, $post_id) {
             
         case 'game_date':
             $game_date = get_post_meta($post_id, '_game_date', true);
-            echo $game_date ? esc_html(date('Y-m-d', strtotime($game_date))) : '-';
+            echo $game_date ? esc_html($game_date) : '-';
+            break;
+            
+        case 'game_season':
+            $terms = wp_get_post_terms($post_id, 'season');
+            if (!empty($terms)) {
+                $season = $terms[0];
+                $active_season = get_active_season();
+                echo '<div class="season-column" data-season-id="' . esc_attr($season->term_id) . '">';
+                echo esc_html($season->name);
+                if ($season->term_id == $active_season) {
+                    echo ' <span class="active-season-badge" style="background: #2271b1; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">Active</span>';
+                }
+                echo '</div>';
+            } else {
+                echo '<span style="color: #999;">No Season</span>';
+            }
             break;
     }
 }
@@ -1782,11 +1802,228 @@ add_action('manage_game_posts_custom_column', 'fill_game_columns', 10, 2);
 
 // Make columns sortable
 function make_game_columns_sortable($columns) {
+    $columns['game_season'] = 'game_season';
+    $columns['date'] = 'date';
     $columns['game_date'] = 'game_date';
     return $columns;
 }
 add_filter('manage_edit-game_sortable_columns', 'make_game_columns_sortable');
 
+// Remove default taxonomy columns to prevent duplicates
+function remove_taxonomy_columns($columns) {
+    unset($columns['taxonomy-season']);
+    return $columns;
+}
+add_filter('manage_game_posts_columns', 'remove_taxonomy_columns', 30);
+
+// Helper function to get team division
+function get_team_division($team_id) {
+    if (!$team_id) return '';
+    $terms = wp_get_post_terms($team_id, 'division');
+    return !empty($terms) ? $terms[0]->name : 'No Division';
+}
+
+// Game Meta Box Callback
+function game_meta_box_callback($post) {
+    wp_nonce_field('game_meta_box', 'game_meta_box_nonce');
+
+    // Get existing values
+    $team1 = get_post_meta($post->ID, '_team1', true);
+    $team2 = get_post_meta($post->ID, '_team2', true);
+    $score1 = get_post_meta($post->ID, '_score1', true);
+    $score2 = get_post_meta($post->ID, '_score2', true);
+    $points1 = get_post_meta($post->ID, '_points1', true);
+    $points2 = get_post_meta($post->ID, '_points2', true);
+    $game_date = get_post_meta($post->ID, '_game_date', true) ?: current_time('Y-m-d');
+
+    // Get divisions for display
+    $team1_division = get_team_division($team1);
+    $team2_division = get_team_division($team2);
+
+    // Add JavaScript for division updates
+    ?>
+    <script type="text/javascript">
+    jQuery(document).ready(function($) {
+        function updateDivisionDisplay(teamId, displayElement) {
+            if (!teamId) {
+                $(displayElement).text('No Division');
+                return;
+            }
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'get_team_division',
+                    team_id: teamId
+                },
+                success: function(response) {
+                    $(displayElement).text(response);
+                }
+            });
+        }
+
+        $('#team1, #team2').on('change', function() {
+            var teamId = $(this).val();
+            var divisionDisplay = $(this).siblings('.division-display');
+            updateDivisionDisplay(teamId, divisionDisplay);
+        });
+    });
+    </script>
+
+    <style>
+    .team-section {
+        margin-bottom: 15px;
+    }
+    .division-display {
+        display: inline-block;
+        margin-left: 10px;
+        padding: 3px 8px;
+        background: #f0f0f1;
+        border-radius: 3px;
+        font-size: 0.9em;
+        color: #666;
+    }
+    </style>
+    <?php
+
+    include_once('game-meta-box-template.php');
+}
+
+// Save game meta data
+function save_game_meta_box_data($post_id) {
+    // Security checks
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    if (!current_user_can('edit_post', $post_id)) return;
+    if (!isset($_POST['game_meta_box_nonce']) || 
+        !wp_verify_nonce($_POST['game_meta_box_nonce'], 'game_meta_box')) {
+        return;
+    }
+
+    // Get and validate teams
+    $team1_id = isset($_POST['team1']) ? absint($_POST['team1']) : 0;
+    $team2_id = isset($_POST['team2']) ? absint($_POST['team2']) : 0;
+    
+    if (!$team1_id || !$team2_id || $team1_id === $team2_id) {
+        return;
+    }
+
+    // Update meta values
+    $meta_updates = [
+        '_team1' => $team1_id,
+        '_team2' => $team2_id,
+        '_score1' => isset($_POST['score1']) ? max(0, absint($_POST['score1'])) : 0,
+        '_score2' => isset($_POST['score2']) ? max(0, absint($_POST['score2'])) : 0,
+        '_points1' => isset($_POST['points1']) ? floatval($_POST['points1']) : 0,
+        '_points2' => isset($_POST['points2']) ? floatval($_POST['points2']) : 0,
+        '_game_date' => isset($_POST['game_date']) ? sanitize_text_field($_POST['game_date']) : current_time('Y-m-d')
+    ];
+
+    foreach ($meta_updates as $key => $value) {
+        update_post_meta($post_id, $key, $value);
+    }
+
+    // Assign to active season if no season is set
+    $current_season = wp_get_post_terms($post_id, 'season');
+    if (empty($current_season)) {
+        $active_season = get_active_season();
+        if ($active_season) {
+            wp_set_object_terms($post_id, [$active_season], 'season');
+        }
+    }
+
+    // Auto-generate game title if needed
+    $current_title = get_the_title($post_id);
+    if (empty($current_title) || $current_title === 'Auto Draft') {
+        $team1_name = get_the_title($team1_id);
+        $team2_name = get_the_title($team2_id);
+        $game_number = wp_count_posts('game')->publish + 1;
+        $timestamp = current_time('Y-m-d H:i:s');
+
+        $new_title = sprintf(
+            '%s vs %s - Game %d (%s)',
+            $team1_name,
+            $team2_name,
+            $game_number,
+            $timestamp
+        );
+
+        wp_update_post([
+            'ID' => $post_id,
+            'post_title' => $new_title,
+            'post_name' => sanitize_title("game-{$game_number}-{$team1_id}-{$team2_id}"),
+        ]);
+    }
+
+    // Update team points
+    wp_schedule_single_event(time(), 'update_team_points_async', [$team1_id]);
+    wp_schedule_single_event(time(), 'update_team_points_async', [$team2_id]);
+}
+add_action('save_post_game', 'save_game_meta_box_data', 10, 1);
+
+// AJAX handler for division updates
+function get_team_division_ajax() {
+    $team_id = isset($_POST['team_id']) ? absint($_POST['team_id']) : 0;
+    $division = get_team_division($team_id);
+    echo $division;
+    wp_die();
+}
+add_action('wp_ajax_get_team_division', 'get_team_division_ajax');
+
+// Quick Edit functionality
+function fix_quick_edit_season_save($post_id, $post) {
+    if ($post->post_type !== 'game') return;
+
+    if (defined('DOING_AJAX') && DOING_AJAX) {
+        if (isset($_POST['game_season'])) {
+            $season_id = absint($_POST['game_season']);
+            if ($season_id > 0) {
+                wp_set_object_terms($post_id, [$season_id], 'season');
+            } else {
+                $active_season = get_active_season();
+                if ($active_season) {
+                    wp_set_object_terms($post_id, [$active_season], 'season');
+                } else {
+                    wp_set_object_terms($post_id, [], 'season');
+                }
+            }
+        }
+    }
+}
+add_action('save_post', 'fix_quick_edit_season_save', 20, 2);
+
+// Quick Edit JavaScript
+function update_quick_edit_season_js() {
+    global $post_type;
+    if ($post_type !== 'game') return;
+    ?>
+    <script type="text/javascript">
+    jQuery(document).ready(function($) {
+        var $wp_inline_edit = inlineEditPost.edit;
+        
+        inlineEditPost.edit = function(id) {
+            $wp_inline_edit.apply(this, arguments);
+            
+            var $post_id = 0;
+            if (typeof(id) === 'object') {
+                $post_id = parseInt(this.getId(id));
+            }
+            
+            if ($post_id > 0) {
+                var $edit_row = $('#edit-' + $post_id);
+                var $post_row = $('#post-' + $post_id);
+                
+                var seasonId = $post_row.find('.season-column').data('season-id');
+                if (seasonId) {
+                    $edit_row.find('select[name="game_season"]').val(seasonId);
+                }
+            }
+        };
+    });
+    </script>
+    <?php
+}
+add_action('admin_footer', 'update_quick_edit_season_js');
 // Handle custom column sorting
 function game_custom_orderby($query) {
     if (!is_admin()) return;
@@ -1799,6 +2036,7 @@ function game_custom_orderby($query) {
     }
 }
 add_action('pre_get_posts', 'game_custom_orderby');
+
 // AJAX handler for standings refresh
 add_action('wp_ajax_refresh_standings', 'refresh_standings_ajax');
 add_action('wp_ajax_nopriv_refresh_standings', 'refresh_standings_ajax');
@@ -2855,37 +3093,6 @@ add_action('admin_notices', function() {
         <?php
     }
 });
-
-// Add season column to games list
-add_filter('manage_game_posts_columns', function($columns) {
-    $new_columns = array();
-    foreach ($columns as $key => $value) {
-        if ($key === 'title') {
-            $new_columns[$key] = $value;
-            $new_columns['game_season'] = 'Season';
-        } else {
-            $new_columns[$key] = $value;
-        }
-    }
-    return $new_columns;
-});
-
-// Fill season column
-add_action('manage_game_posts_custom_column', function($column, $post_id) {
-    if ($column === 'game_season') {
-        $terms = wp_get_post_terms($post_id, 'season');
-        if (!empty($terms)) {
-            $season = $terms[0];
-            $active_season = get_active_season();
-            echo esc_html($season->name);
-            if ($season->term_id == $active_season) {
-                echo ' <span class="active-season-badge" style="background: #2271b1; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">Active</span>';
-            }
-        } else {
-            echo '<span style="color: #999;">No Season</span>';
-        }
-    }
-}, 10, 2);
 
 // Make season column sortable
 add_filter('manage_edit-game_sortable_columns', function($columns) {
