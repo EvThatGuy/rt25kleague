@@ -557,7 +557,7 @@ function save_team_meta_box_data($post_id) {
 }
 /**
  * Part 3: Game Meta Box and Game Management
- * Last updated by EvThatGuy on 2025-02-05 03:38:08
+ * Last updated by EvThatGuy on 2025-02-13 18:50:36
  */
 
 // Callback for the game meta box with improved team selection and validation
@@ -777,78 +777,68 @@ if (!function_exists('game_meta_box_callback')) {
     }
 }
 
-// Save game meta data with enhanced validation and error handling
+// Save game meta data with simplified handling
 if (!function_exists('save_game_meta_box_data')) {
     function save_game_meta_box_data($post_id) {
-        // Security checks
+        // Skip autosave and basic security
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (!isset($_POST['game_meta_box_nonce'])) return;
+        if (!wp_verify_nonce($_POST['game_meta_box_nonce'], 'game_meta_box')) return;
         if (!current_user_can('edit_post', $post_id)) return;
-        if (!isset($_POST['game_meta_box_nonce']) || 
-            !wp_verify_nonce($_POST['game_meta_box_nonce'], 'game_meta_box')) {
-            return;
-        }
 
-        // Validate and save team selections
+        // Get team IDs
         $team1_id = isset($_POST['team1']) ? absint($_POST['team1']) : 0;
         $team2_id = isset($_POST['team2']) ? absint($_POST['team2']) : 0;
-        
-        // Validation checks
-        if (!$team1_id || !$team2_id) {
-            return;
-        }
-        if ($team1_id === $team2_id) {
-            return;
-        }
 
-        // Start transaction-like behavior
-        wp_cache_delete('team_standings_display');
-        wp_cache_delete('standings_api_data');
-        delete_transient('team_list_for_games');
+        // Validate teams
+        if (!$team1_id || !$team2_id || $team1_id === $team2_id) return;
 
-        // Batch update meta values
-        $meta_updates = [
+        // Save meta data
+        $meta_data = array(
             '_team1' => $team1_id,
             '_team2' => $team2_id,
-            '_score1' => max(0, absint($_POST['score1'] ?? 0)),
-            '_score2' => max(0, absint($_POST['score2'] ?? 0)),
-            '_points1' => floatval($_POST['points1'] ?? 0),
-            '_points2' => floatval($_POST['points2'] ?? 0)
-        ];
+            '_score1' => isset($_POST['score1']) ? max(0, absint($_POST['score1'])) : 0,
+            '_score2' => isset($_POST['score2']) ? max(0, absint($_POST['score2'])) : 0,
+            '_points1' => isset($_POST['points1']) ? floatval($_POST['points1']) : 0,
+            '_points2' => isset($_POST['points2']) ? floatval($_POST['points2']) : 0,
+            '_last_modified' => '2025-02-13 18:50:36',
+            '_last_modified_by' => 'EvThatGuy'
+        );
 
-        // Update all meta values at once
-        foreach ($meta_updates as $key => $value) {
+        foreach ($meta_data as $key => $value) {
             update_post_meta($post_id, $key, $value);
         }
 
-        // Queue points update for both teams
-        wp_schedule_single_event(time(), 'update_team_points_async', [$team1_id]);
-        wp_schedule_single_event(time(), 'update_team_points_async', [$team2_id]);
-
-        // Auto-generate game title if needed
+        // Set title only once for new posts
         $current_title = get_the_title($post_id);
         if (empty($current_title) || $current_title === 'Auto Draft') {
             $team1_name = get_the_title($team1_id);
             $team2_name = get_the_title($team2_id);
             $game_number = wp_count_posts('game')->publish + 1;
-            $date = current_time('Y-m-d');
+            
+            $title = sprintf(
+                '%s vs %s - Game %d (%s)',
+                $team1_name,
+                $team2_name,
+                $game_number,
+                date('Y-m-d')
+            );
 
-            wp_update_post([
+            wp_update_post(array(
                 'ID' => $post_id,
-                'post_title' => sprintf(
-                    '%s vs %s - Game %d (%s)',
-                    $team1_name,
-                    $team2_name,
-                    $game_number,
-                    $date
-                ),
-                'post_name' => sanitize_title("game-{$game_number}-{$team1_id}-{$team2_id}"),
-            ]);
+                'post_title' => $title,
+                'post_name' => sanitize_title($title)
+            ));
         }
-    }
-    add_action('save_post_game', 'save_game_meta_box_data');
-}
 
-// Add these new functions right after
+        // Update team points asynchronously
+        wp_schedule_single_event(time() + 1, 'update_team_points_async', array($team1_id));
+        wp_schedule_single_event(time() + 2, 'update_team_points_async', array($team2_id));
+    }
+}
+add_action('save_post_game', 'save_game_meta_box_data');
+
+// Background update functions
 add_action('update_team_points_async', 'update_team_points_background');
 
 function update_team_points_background($team_id) {
