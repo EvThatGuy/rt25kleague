@@ -121,13 +121,42 @@ if (!function_exists('register_team_post_type')) {
 }
 /**
  * Part 2: Taxonomies and Meta Boxes
- * Last updated by EvThatGuy on 2025-02-07 02:03:41
+ * Last updated by EvThatGuy on 2025-02-07 02:23:07
  */
 
-// Add meta boxes for both team and game post types
-add_action('add_meta_boxes', 'register_all_meta_boxes');
+// Add Team Meta Box
+if (!function_exists('add_team_meta_box')) {
+    function add_team_meta_box() {
+        add_meta_box(
+            'team_details',
+            'Team Details',
+            'team_meta_box_callback',
+            'team',
+            'normal',
+            'high'
+        );
+    }
+}
 
+// Add Game Meta Box
+if (!function_exists('add_game_meta_box')) {
+    function add_game_meta_box() {
+        add_meta_box(
+            'game_details',
+            'Game Details',
+            'game_meta_box_callback',
+            'game',
+            'normal',
+            'high'
+        );
+    }
+}
+
+// Register all meta boxes
 function register_all_meta_boxes() {
+    add_game_meta_box();
+    add_team_meta_box();
+    
     // Add Division Meta Box
     add_meta_box(
         'division-select',
@@ -138,30 +167,11 @@ function register_all_meta_boxes() {
         'high'
     );
 
-    // Add Game Meta Box
-    add_meta_box(
-        'game_details',
-        'Game Details',
-        'game_meta_box_callback',
-        'game',
-        'normal',
-        'high'
-    );
-
-    // Add Team Meta Box
-    add_meta_box(
-        'team_details',
-        'Team Details',
-        'team_meta_box_callback',
-        'team',
-        'normal',
-        'high'
-    );
-
     // Remove unwanted meta boxes
     remove_meta_box('teamsize', 'team', 'normal');
     remove_meta_box('manualpoints', 'team', 'normal');
 }
+add_action('add_meta_boxes', 'register_all_meta_boxes');
 
 // Division Taxonomy
 if (!function_exists('register_division_taxonomy')) {
@@ -2595,3 +2605,457 @@ if (!function_exists('get_team_division_name')) {
         return 'Unassigned';
     }
 }
+/**
+ * Part 11: Active Season Management
+ * Last updated by EvThatGuy on 2025-02-13 02:40:01
+ */
+
+// Add Active Season Option
+function get_active_season() {
+    return get_option('rt25k_active_season', 0);
+}
+
+// Add Season Settings Page
+function add_season_settings_page() {
+    add_submenu_page(
+        'edit.php?post_type=game',
+        'Season Management',
+        'Season Management',
+        'manage_options',
+        'season-management',
+        'render_season_management_page'
+    );
+}
+add_action('admin_menu', 'add_season_settings_page');
+
+// Render Season Management Page
+function render_season_management_page() {
+    // Handle form submission
+    if (isset($_POST['submit_season_action']) && check_admin_referer('season_management_action')) {
+        if (isset($_POST['active_season'])) {
+            update_option('rt25k_active_season', intval($_POST['active_season']));
+        }
+        
+        if (isset($_POST['action_type'])) {
+            switch ($_POST['action_type']) {
+                case 'start':
+                    $season_name = sanitize_text_field($_POST['new_season_name']);
+                    if (!empty($season_name)) {
+                        $new_season = wp_insert_term($season_name, 'season');
+                        if (!is_wp_error($new_season)) {
+                            update_option('rt25k_active_season', $new_season['term_id']);
+                        }
+                    }
+                    break;
+                    
+                case 'end':
+                    $active_season = get_active_season();
+                    if ($active_season) {
+                        update_option('rt25k_active_season', 0);
+                    }
+                    break;
+            }
+        }
+    }
+
+    // Get current active season
+    $active_season = get_active_season();
+    $seasons = get_terms([
+        'taxonomy' => 'season',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'DESC'
+    ]);
+
+    ?>
+    <div class="wrap">
+        <h1>Season Management</h1>
+        
+        <div class="card">
+            <h2>Active Season</h2>
+            <?php if ($active_season): ?>
+                <?php $active_season_term = get_term($active_season, 'season'); ?>
+                <p>Current Active Season: <strong><?php echo esc_html($active_season_term->name); ?></strong></p>
+                
+                <form method="post" action="">
+                    <?php wp_nonce_field('season_management_action'); ?>
+                    <input type="hidden" name="action_type" value="end">
+                    <p class="submit">
+                        <input type="submit" name="submit_season_action" class="button button-primary" 
+                               value="End Current Season" 
+                               onclick="return confirm('Are you sure you want to end the current season?');">
+                    </p>
+                </form>
+            <?php else: ?>
+                <p>No active season. Start a new one below.</p>
+            <?php endif; ?>
+        </div>
+
+        <div class="card">
+            <h2>Start New Season</h2>
+            <form method="post" action="">
+                <?php wp_nonce_field('season_management_action'); ?>
+                <input type="hidden" name="action_type" value="start">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="new_season_name">Season Name</label></th>
+                        <td>
+                            <input type="text" name="new_season_name" id="new_season_name" class="regular-text"
+                                   placeholder="e.g., Spring 2025" required>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <input type="submit" name="submit_season_action" class="button button-primary" 
+                           value="Start New Season">
+                </p>
+            </form>
+        </div>
+
+        <?php if (!$active_season && !empty($seasons)): ?>
+        <div class="card">
+            <h2>Activate Existing Season</h2>
+            <form method="post" action="">
+                <?php wp_nonce_field('season_management_action'); ?>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="active_season">Select Season</label></th>
+                        <td>
+                            <select name="active_season" id="active_season">
+                                <?php foreach ($seasons as $season): ?>
+                                    <option value="<?php echo esc_attr($season->term_id); ?>">
+                                        <?php echo esc_html($season->name); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <input type="submit" name="submit_season_action" class="button button-primary" 
+                           value="Activate Season">
+                </p>
+            </form>
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <style>
+        .card {
+            background: #fff;
+            border: 1px solid #ccd0d4;
+            border-radius: 4px;
+            margin-top: 20px;
+            padding: 20px;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+        }
+        .card h2 {
+            margin-top: 0;
+        }
+    </style>
+    <?php
+}
+/**
+ * Part 12: Season Game Management
+ * Last updated by EvThatGuy on 2025-02-13 02:43:53
+ */
+
+// Add season field to game meta box
+function add_season_field_to_game($post) {
+    $current_season = wp_get_post_terms($post->ID, 'season');
+    $current_season_id = (!empty($current_season)) ? $current_season[0]->term_id : '';
+    
+    // Get all seasons
+    $seasons = get_terms([
+        'taxonomy' => 'season',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'DESC'
+    ]);
+
+    // Get active season
+    $active_season = get_active_season();
+
+    ?>
+    <div class="game-season-section" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+        <h4 style="margin-top: 0;">Season Assignment</h4>
+        <select name="game_season" id="game_season" style="width: 100%;">
+            <option value="">Select Season</option>
+            <?php foreach ($seasons as $season): ?>
+                <option value="<?php echo esc_attr($season->term_id); ?>" 
+                    <?php 
+                    selected($current_season_id, $season->term_id);
+                    if (empty($current_season_id) && $season->term_id == $active_season) {
+                        echo ' selected';
+                    }
+                    ?>
+                    <?php echo ($season->term_id == $active_season) ? 'data-active="true"' : ''; ?>>
+                    <?php echo esc_html($season->name); ?>
+                    <?php echo ($season->term_id == $active_season) ? ' (Active)' : ''; ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <p class="description">
+            <?php if ($active_season): ?>
+                Games will be automatically assigned to the active season.
+            <?php else: ?>
+                No active season. Please select a season for this game.
+            <?php endif; ?>
+        </p>
+    </div>
+    <?php
+}
+
+// Add the season field to the game meta box
+add_action('edit_form_after_title', function($post) {
+    if ($post->post_type === 'game') {
+        add_season_field_to_game($post);
+    }
+});
+
+// Add bulk season assignment to games list
+add_filter('bulk_actions-edit-game', function($bulk_actions) {
+    $seasons = get_terms([
+        'taxonomy' => 'season',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'DESC'
+    ]);
+
+    foreach ($seasons as $season) {
+        $bulk_actions['assign_to_season_' . $season->term_id] = 'Assign to Season: ' . $season->name;
+    }
+    
+    return $bulk_actions;
+});
+
+// Handle bulk season assignment
+add_filter('handle_bulk_actions-edit-game', function($redirect_to, $action, $post_ids) {
+    if (strpos($action, 'assign_to_season_') === 0) {
+        $season_id = intval(str_replace('assign_to_season_', '', $action));
+        
+        foreach ($post_ids as $post_id) {
+            wp_set_object_terms($post_id, [$season_id], 'season');
+        }
+
+        $redirect_to = add_query_arg('bulk_season_assigned', count($post_ids), $redirect_to);
+    }
+    
+    return $redirect_to;
+}, 10, 3);
+
+// Show notice after bulk assignment
+add_action('admin_notices', function() {
+    if (!empty($_REQUEST['bulk_season_assigned'])) {
+        $count = intval($_REQUEST['bulk_season_assigned']);
+        ?>
+        <div class="notice notice-success">
+            <p><?php echo sprintf('%d games assigned to season.', $count); ?></p>
+        </div>
+        <?php
+    }
+});
+
+// Add season column to games list
+add_filter('manage_game_posts_columns', function($columns) {
+    $new_columns = array();
+    foreach ($columns as $key => $value) {
+        if ($key === 'title') {
+            $new_columns[$key] = $value;
+            $new_columns['game_season'] = 'Season';
+        } else {
+            $new_columns[$key] = $value;
+        }
+    }
+    return $new_columns;
+});
+
+// Fill season column
+add_action('manage_game_posts_custom_column', function($column, $post_id) {
+    if ($column === 'game_season') {
+        $terms = wp_get_post_terms($post_id, 'season');
+        if (!empty($terms)) {
+            $season = $terms[0];
+            $active_season = get_active_season();
+            echo esc_html($season->name);
+            if ($season->term_id == $active_season) {
+                echo ' <span class="active-season-badge" style="background: #2271b1; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em;">Active</span>';
+            }
+        } else {
+            echo '<span style="color: #999;">No Season</span>';
+        }
+    }
+}, 10, 2);
+
+// Make season column sortable
+add_filter('manage_edit-game_sortable_columns', function($columns) {
+    $columns['game_season'] = 'game_season';
+    return $columns;
+});
+
+// Add season filter to games list
+add_action('restrict_manage_posts', function() {
+    global $typenow;
+    if ($typenow === 'game') {
+        $selected = isset($_GET['game_season']) ? $_GET['game_season'] : '';
+        $seasons = get_terms([
+            'taxonomy' => 'season',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'DESC'
+        ]);
+        
+        if (!empty($seasons)) {
+            echo '<select name="game_season">';
+            echo '<option value="">All Seasons</option>';
+            foreach ($seasons as $season) {
+                printf(
+                    '<option value="%s" %s>%s%s</option>',
+                    esc_attr($season->slug),
+                    selected($selected, $season->slug, false),
+                    esc_html($season->name),
+                    ($season->term_id == get_active_season()) ? ' (Active)' : ''
+                );
+            }
+            echo '</select>';
+        }
+    }
+});
+
+// Save season when saving game
+add_action('save_post_game', function($post_id, $post, $update) {
+    // Skip autosaves and revisions
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    if (wp_is_post_revision($post_id)) return;
+    
+    // Check permissions
+    if (!current_user_can('edit_post', $post_id)) return;
+    
+    // Save season
+    if (isset($_POST['game_season'])) {
+        $season_id = intval($_POST['game_season']);
+        if ($season_id > 0) {
+            wp_set_object_terms($post_id, [$season_id], 'season');
+        } else {
+            // If no season selected, try to use active season
+            $active_season = get_active_season();
+            if ($active_season) {
+                wp_set_object_terms($post_id, [$active_season], 'season');
+            } else {
+                wp_set_object_terms($post_id, [], 'season');
+            }
+        }
+    }
+}, 10, 3);
+
+// Add quick edit support for seasons
+add_action('quick_edit_custom_box', function($column_name, $post_type) {
+    if ($post_type !== 'game' || $column_name !== 'game_season') return;
+    ?>
+    <fieldset class="inline-edit-col-right">
+        <div class="inline-edit-col">
+            <label class="inline-edit-group">
+                <span class="title">Season</span>
+                <select name="game_season">
+                    <option value="">Select Season</option>
+                    <?php 
+                    $seasons = get_terms([
+                        'taxonomy' => 'season',
+                        'hide_empty' => false,
+                        'orderby' => 'name',
+                        'order' => 'DESC'
+                    ]);
+                    foreach ($seasons as $season): 
+                    ?>
+                        <option value="<?php echo esc_attr($season->term_id); ?>">
+                            <?php 
+                            echo esc_html($season->name);
+                            echo ($season->term_id == get_active_season()) ? ' (Active)' : '';
+                            ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+        </div>
+    </fieldset>
+    <?php
+}, 10, 2);
+
+// Add season to quick edit JavaScript
+add_action('admin_footer', function() {
+    global $post_type;
+    if ($post_type !== 'game') return;
+    ?>
+    <script type="text/javascript">
+    jQuery(document).ready(function($) {
+        var $wp_inline_edit = inlineEditPost.edit;
+        
+        inlineEditPost.edit = function(id) {
+            $wp_inline_edit.apply(this, arguments);
+            
+            var $post_id = 0;
+            if (typeof(id) === 'object') {
+                $post_id = parseInt(this.getId(id));
+            }
+            
+            if ($post_id > 0) {
+                var $edit_row = $('#edit-' + $post_id);
+                var $post_row = $('#post-' + $post_id);
+                
+                var season_id = $post_row.find('.column-game_season').attr('data-season-id');
+                $edit_row.find('select[name="game_season"]').val(season_id);
+            }
+        };
+    });
+    </script>
+    <?php
+});
+
+// Register the season taxonomy if not already registered
+if (!taxonomy_exists('season')) {
+    add_action('init', function() {
+        register_taxonomy('season', ['game', 'team'], [
+            'labels' => [
+                'name' => 'Seasons',
+                'singular_name' => 'Season',
+                'search_items' => 'Search Seasons',
+                'all_items' => 'All Seasons',
+                'edit_item' => 'Edit Season',
+                'update_item' => 'Update Season',
+                'add_new_item' => 'Add New Season',
+                'new_item_name' => 'New Season Name',
+                'menu_name' => 'Seasons'
+            ],
+            'hierarchical' => false,
+            'show_ui' => true,
+            'show_admin_column' => true,
+            'query_var' => true,
+            'rewrite' => ['slug' => 'season'],
+            'show_in_rest' => true,
+            'capabilities' => [
+                'manage_terms' => 'manage_options',
+                'edit_terms' => 'manage_options',
+                'delete_terms' => 'manage_options',
+                'assign_terms' => 'edit_posts'
+            ]
+        ]);
+    });
+}
+
+// Update games view to include season filter in query
+add_action('pre_get_posts', function($query) {
+    if (!is_admin()) return;
+    
+    if ($query->is_main_query() && 
+        isset($_GET['game_season']) && 
+        !empty($_GET['game_season'])) {
+        
+        $query->set('tax_query', [
+            [
+                'taxonomy' => 'season',
+                'field' => 'slug',
+                'terms' => sanitize_text_field($_GET['game_season'])
+            ]
+        ]);
+    }
+});
