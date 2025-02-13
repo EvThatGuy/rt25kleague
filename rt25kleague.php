@@ -121,7 +121,7 @@ if (!function_exists('register_team_post_type')) {
 }
 /**
  * Part 2: Taxonomies and Meta Boxes
- * Last updated by EvThatGuy on 2025-02-07 02:23:07
+ * Last updated by EvThatGuy on 2025-02-13 18:59:30
  */
 
 // Add Team Meta Box
@@ -485,45 +485,6 @@ function team_meta_box_callback($post) {
     <?php
 }
 
-// Save game meta box data
-add_action('save_post_game', 'save_game_meta_box_data');
-
-function save_game_meta_box_data($post_id) {
-    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
-    if (get_post_type($post_id) !== 'game') return;
-    if (!current_user_can('edit_post', $post_id)) return;
-    if (!isset($_POST['game_meta_box_nonce']) || !wp_verify_nonce($_POST['game_meta_box_nonce'], 'game_meta_box')) {
-        return;
-    }
-
-    $fields = array(
-        '_team1' => 'team1',
-        '_team2' => 'team2',
-        '_score1' => 'score1',
-        '_score2' => 'score2',
-        '_points1' => 'points1',
-        '_points2' => 'points2'
-    );
-
-    foreach ($fields as $meta_key => $post_key) {
-        if (isset($_POST[$post_key])) {
-            $value = ($post_key === 'team1' || $post_key === 'team2') ? 
-                absint($_POST[$post_key]) : 
-                floatval($_POST[$post_key]);
-            update_post_meta($post_id, $meta_key, $value);
-        }
-    }
-
-    // Update team points if needed
-    if (isset($_POST['team1']) && isset($_POST['team2'])) {
-        $team1_id = absint($_POST['team1']);
-        $team2_id = absint($_POST['team2']);
-        
-        if ($team1_id > 0) update_team_standings($team1_id);
-        if ($team2_id > 0) update_team_standings($team2_id);
-    }
-}
-
 // Save team meta box data
 add_action('save_post_team', 'save_team_meta_box_data');
 
@@ -554,8 +515,7 @@ function save_team_meta_box_data($post_id) {
     if (isset($_POST['manual_points'])) {
         update_team_standings($post_id);
     }
-}
-/**
+}/**
  * Part 3: Game Meta Box and Game Management
  * Last updated by EvThatGuy on 2025-02-13 18:50:36
  */
